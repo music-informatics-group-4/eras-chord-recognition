@@ -1,0 +1,9 @@
+name: eras-chord-recognition
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - numpy>=1.21.0
+  - pandas>=1.3.0
+  - pip
