@@ -355,7 +355,7 @@ def load_data(use_cache: bool = True) -> List[MusicPiece]:
     music_pieces = []
     
     print("Aligning data...")
-    for indx, row in annotations.iterrows():
+    for _, row in annotations.iterrows():
         filename = row['Filename']
         
         if filename not in filename_mapping:
@@ -369,12 +369,6 @@ def load_data(use_cache: bool = True) -> List[MusicPiece]:
             chroma_data[chroma_file], 
             chord_data[chord_file]
         )
-
-        if indx==0:
-            print(f"Example alignment for {filename}:")
-            print(f"  Chroma features: {chroma_features}")
-            print(f"  Chord labels: {chord_labels}")
-            print(f"  Timestamps: {timestamps}")
 
         if len(chroma_features) == 0:
             print(f"Warning: No aligned data for {filename}")
