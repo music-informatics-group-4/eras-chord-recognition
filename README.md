@@ -22,6 +22,39 @@ eras-chord-recognition/
 conda env create -f environment.yml
 conda activate eras-chord-recognition
 ```
+## Working with the Dataset
+
+Download the data from the [CrossEra Dataset](https://www.audiolabs-erlangen.de/resources/MIR/cross-era). You need:
+- Annotations
+- Chroma features 
+- Chord features
+
+Organize your data directory as follows:
+
+```
+data/
+├── cross-era_annotations.csv
+├── chroma_features/
+│   ├── file1.csv
+│   ├── file2.csv
+│   └── ...
+└── chords/
+    ├── file1.csv
+    ├── file2.csv
+    └── ...
+```
+
+## Data Loading
+
+Test the data loading:
+```bash
+python data_utils.py
+```
+
+This will:
+- Load and validate your dataset
+- Create cached `.pkl` files for faster subsequent loads
+- Show some information on what was loaded
 
 ## Plan for implementation
 
@@ -30,3 +63,4 @@ conda activate eras-chord-recognition
 3. Implement the skeleton methods in each module
 4. Run training: `python train.py`
 5. Run evaluation: `python evaluate.py`
+
