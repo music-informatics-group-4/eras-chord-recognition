@@ -69,10 +69,12 @@ def reformat_data(chord_data, frame_size = 0.1):
     
         
 
+class Model:
+    def __init__(self, name):
+        self.name = name
 
-
-def load_model():
-    return None
+def load_model(name):
+    return Model(name)
     #TODO use hmm_model.load
 def run_model(model, data, frame_size = 0.1, genres = ALL_ERAS):
     #TODO change this 
@@ -95,7 +97,9 @@ def eval(model, chord_data, classes = ALL_ERAS):
     predictions = run_model(model, chord_data) #TODO run on chromagram data when model is done
 
     conf_mat = np.zeros((len(CHORDS), len(CHORDS)))
-    print("conf mat shape: ", conf_mat.shape)
+    #   Conf_mat[i,:] = row i, all values predicted as label i
+    #   Confmat[:,i] = column i, all values that actually are label i
+    print("conf mat shape: ", conf_mat.shape)   
     hits = 0
     misses = 0
     for cls in classes:
@@ -112,8 +116,41 @@ def eval(model, chord_data, classes = ALL_ERAS):
                 else:
                     misses += 1
 
-    return hits, misses, conf_mat
 
+    tot = hits+misses
+    TP = np.zeros(len(CHORDS))
+    FP = np.zeros(len(CHORDS))
+    TN = np.zeros(len(CHORDS))
+    FN = np.zeros(len(CHORDS))
+    P = np.zeros(len(CHORDS))
+    R = np.zeros(len(CHORDS))
+    F1 = np.zeros(len(CHORDS))
+    for i in range(len(CHORDS)):
+        TP[i] = conf_mat[i,i]
+        FP[i] = np.sum(conf_mat[i, :]) - TP[i]
+        FN[i] = np.sum(conf_mat[:, i]) - TP[i]
+        TN[i] = tot - TP[i] - FP[i] - FN[i]
+        P[i] = TP[i]/(TP[i] + FP[i])
+        R[i] = TP[i] /(TP[i] +FN[i])
+        F1[i] = 2*P[i]*R[i]/(P[i]+R[i])
+
+
+    res = {}
+    res["name"] = model.name
+    res["hits"] = hits
+    res["misses"] = misses
+    res["conf_mat"] = conf_mat
+    res["TP"] = TP
+    res["FP"] = FP
+    res["TN"] = TN
+    res["FN"] = FN
+    res["P"] = P
+    res["R"] = R
+    res["F1"] = F1
+
+
+
+    return res
 
 def main():
     ## TODO: Implement evaluation pipeline
@@ -128,7 +165,7 @@ def main():
     print("data reformated in ", time.time()-t_before, "seconds")
 
     t_before = time.time()
-    m = load_model()
+    m = load_model("m1")
     preds = run_model(m, chord_data)
     print("model ran in ", time.time()-t_before, "seconds")
     
@@ -136,13 +173,19 @@ def main():
     preds = format_model_output(preds)
 
     t_before = time.time()
-    hits, misses, conf_mat = eval(m, chord_data)
+    res = eval(m, chord_data)
     print("evaluation done in ", time.time()-t_before, "seconds")
 
-
-    print("hits:" , hits)
-    print("misses:", misses)
-    print("conf_mat: ", conf_mat)
-    #TODO load models
+    tot = res["hits"] + res["misses"]
+    print("hits:" , res["hits"])
+    print("misses:", res["misses"])
+    print("conf_mat: ", res["conf_mat"])
+    print("TP: ", np.mean(res["TP"]))
+    print("FP: ", np.mean(res["FP"]))
+    print("TN: ", np.mean(res["TN"]))
+    print("FN: ", np.mean(res["FN"]))
+    print("P: ", np.mean(res["P"]))
+    print("R: ", np.mean(res["R"]))
+    print("F1: ", np.mean(res["F1"]))
 if __name__ == "__main__":
     main()
