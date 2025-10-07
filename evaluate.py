@@ -3,6 +3,7 @@ import data_utils
 import random
 import time
 import numpy as np
+import matplotlib.pyplot as plt
 
 ALL_ERAS = ["piano_addon", "piano_baroque", "piano_classical", "piano_modern", "piano_romantic", "orchestra_addon", "orchestra_baroque", "orchestra_classical", "orchestra_modern", "orchestra_romantic"]
 CHORDS = ['A_aug', 'A_dim', 'A_dim_dim7', 'A_dim_min7', 'A_maj', 'A_maj_maj7', 'A_maj_min7', 'A_min', 'A_min_min7', 'Ab_dim', 'Ab_dim_min7', 'Ab_maj', 'Ab_maj_maj7', 'Ab_maj_min7', 'Ab_min', 'Ab_min_min7', 'B_aug', 'B_dim', 'B_dim_dim7', 'B_dim_min7', 'B_maj', 'B_maj_maj7', 'B_maj_min7', 'B_min', 'B_min_min7', 'Bb_aug', 'Bb_dim', 'Bb_dim_dim7', 'Bb_dim_min7', 'Bb_maj', 'Bb_maj_maj7', 'Bb_maj_min7', 'Bb_min', 'Bb_min_min7', 'C#_dim', 'C#_dim_min7', 'C#_maj', 'C#_maj_maj7', 'C#_maj_min7', 'C#_min', 'C#_min_min7', 'C_aug', 'C_dim', 'C_dim_min7', 'C_maj', 'C_maj_maj7', 'C_maj_min7', 'C_min', 'C_min_min7', 'D_dim', 'D_dim_min7', 'D_maj', 'D_maj_maj7', 'D_maj_min7', 'D_min', 'D_min_min7', 'E_dim', 'E_dim_min7', 'E_maj', 'E_maj_maj7', 'E_maj_min7', 'E_min', 'E_min_min7', 'Eb_dim', 'Eb_dim_min7', 'Eb_maj', 'Eb_maj_maj7', 'Eb_maj_min7', 'Eb_min', 'Eb_min_min7', 'F#_dim', 'F#_dim_min7', 'F#_maj', 'F#_maj_maj7', 'F#_maj_min7', 'F#_min', 'F#_min_min7', 'F_dim', 'F_dim_min7', 'F_maj', 'F_maj_maj7', 'F_maj_min7', 'F_min', 'F_min_min7', 'G_dim', 'G_dim_min7', 'G_maj', 'G_maj_maj7', 'G_maj_min7', 'G_min', 'G_min_min7', 'N']
@@ -99,7 +100,6 @@ def eval(model, chord_data, classes = ALL_ERAS):
     conf_mat = np.zeros((len(CHORDS), len(CHORDS)))
     #   Conf_mat[i,:] = row i, all values predicted as label i
     #   Confmat[:,i] = column i, all values that actually are label i
-    print("conf mat shape: ", conf_mat.shape)   
     hits = 0
     misses = 0
     for cls in classes:
@@ -152,6 +152,29 @@ def eval(model, chord_data, classes = ALL_ERAS):
 
     return res
 
+
+def compare_plot(reports, target_metrics, save = True, name = None):
+    if name == None:
+        name = "Plot"
+    for metric in target_metrics:
+        bar_vals = []
+        bar_names = []
+        for report in reports:
+            bar_names.append(report["name"])
+            if isinstance(report[metric], (int, float)):
+                bar_vals.append(report[metric])
+            else:
+                bar_vals.append(np.mean(report[metric]))
+
+        plt.bar(bar_names, bar_vals)
+        plt.ylabel(metric)
+        if save:
+            plt.savefig("results/" + name + "_" + metric)
+        else:
+            plt.show()
+        
+
+
 def main():
     ## TODO: Implement evaluation pipeline
     # this script should load trained HMM models from disk,
@@ -165,27 +188,29 @@ def main():
     print("data reformated in ", time.time()-t_before, "seconds")
 
     t_before = time.time()
-    m = load_model("m1")
-    preds = run_model(m, chord_data)
-    print("model ran in ", time.time()-t_before, "seconds")
+    m1 = load_model("m1")
+    m2 = load_model("m2")
+    m3 = load_model("m3")
+    m4 = load_model("m4")
+    models = [m1, m2, m3, m4]
     
+    reports = []
 
-    preds = format_model_output(preds)
+    for m in models:
 
-    t_before = time.time()
-    res = eval(m, chord_data)
-    print("evaluation done in ", time.time()-t_before, "seconds")
+        preds = run_model(m, chord_data)
+        print("model",m.name,"ran in ", time.time()-t_before, "seconds")
+        
 
-    tot = res["hits"] + res["misses"]
-    print("hits:" , res["hits"])
-    print("misses:", res["misses"])
-    print("conf_mat: ", res["conf_mat"])
-    print("TP: ", np.mean(res["TP"]))
-    print("FP: ", np.mean(res["FP"]))
-    print("TN: ", np.mean(res["TN"]))
-    print("FN: ", np.mean(res["FN"]))
-    print("P: ", np.mean(res["P"]))
-    print("R: ", np.mean(res["R"]))
-    print("F1: ", np.mean(res["F1"]))
+        preds = format_model_output(preds)
+
+        t_before = time.time()
+        res = eval(m, chord_data)
+        reports.append(res)
+        print("evaluation done in ", time.time()-t_before, "seconds")
+
+    compare_plot(reports, ["TP", "F1"])
+
+
 if __name__ == "__main__":
     main()
