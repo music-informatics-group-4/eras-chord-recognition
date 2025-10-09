@@ -58,8 +58,6 @@ def reformat_data(chord_data, frame_size = 0.1):
         #TODO actually find the correct class here
         cls = random.choice(ALL_ERAS)
         formated_data[cls][key] = labels
-        if processed_files % 200 == 0:
-            print(processed_files)
 
         processed_files += 1
         if key == "CrossEra-0518_Shostakovich_symphony_no13_kariera_career.mp3_asdf":
@@ -132,7 +130,7 @@ def eval(model, chord_data, classes = ALL_ERAS):
         TN[i] = tot - TP[i] - FP[i] - FN[i]
         P[i] = TP[i]/(TP[i] + FP[i])
         R[i] = TP[i] /(TP[i] +FN[i])
-        F1[i] = 2*P[i]*R[i]/(P[i]+R[i])
+        F1[i] = 2*TP[i]/(2*TP[i] + FP[i] + FN[i])
 
 
     res = {}
@@ -153,10 +151,11 @@ def eval(model, chord_data, classes = ALL_ERAS):
     return res
 
 
-def compare_plot(reports, target_metrics, save = True, name = None):
+def compare_plot(reports, target_metrics, name = None, save = True):
     if name == None:
-        name = "Plot"
+        name = "compare_plot"
     for metric in target_metrics:
+        plt.clf()
         bar_vals = []
         bar_names = []
         for report in reports:
@@ -172,6 +171,28 @@ def compare_plot(reports, target_metrics, save = True, name = None):
             plt.savefig("results/" + name + "_" + metric)
         else:
             plt.show()
+
+def chord_compare(report, target_metrics, target_chords = CHORDS, name = None, save = True):
+    if name == None:
+        name = "chord_compare_plot"
+    for metric in target_metrics:
+        plt.clf()
+        if isinstance(report[metric], (int, float)):
+            raise Exception("Cannot generate a per-chord comparison for a metric that is not a per-chord list")
+        bar_vals = []
+        bar_names = []
+        for i in range(len(CHORDS)):
+            chord = CHORDS[i]
+            if chord in target_chords:
+                bar_names.append(chord)
+                bar_vals.append(report[metric][i])
+
+        plt.bar(bar_names, bar_vals)
+        plt.ylabel(metric)
+        if save:
+            plt.savefig("results/" + name + "_" + metric)
+        else:
+            plt.show()
         
 
 
@@ -180,8 +201,10 @@ def main():
     # this script should load trained HMM models from disk,
     # evaluate them on test data, and generate comparison reports
     # including accuracy metrics, confusion matrices, and plots
-    chord_data = data_utils.load_chord_annotations()
 
+    #TODO maybe figure out how to use cache here.
+    chord_data = data_utils.load_chord_annotations()
+    #chrom_data = data_utils.load_chroma_features()
     t_before = time.time()
     chord_data = reformat_data(chord_data)
 
@@ -210,6 +233,7 @@ def main():
         print("evaluation done in ", time.time()-t_before, "seconds")
 
     compare_plot(reports, ["TP", "F1"])
+    chord_compare(reports[0], ["TP", "F1"], ["A_maj", "B_maj", "C_maj"])
 
 
 if __name__ == "__main__":
