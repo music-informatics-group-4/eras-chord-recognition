@@ -238,17 +238,18 @@ def align_chroma_and_chords(chroma_df: pd.DataFrame,
     aligned_chords = []
     aligned_times = []
 
-    # iterating over all chroma_times and adding the chord if it exists, if not add a "No Chord" label
-    chord_time_to_label = {time: label for time, label in zip(chord_times, chord_labels)}
+    current_chord = "N"
+    chord_idx = 0
+    
     for i, chroma_time in enumerate(chroma_times):
-        if chroma_time in chord_time_to_label:
-            aligned_chroma.append(chroma_features[i])
-            aligned_chords.append(chord_time_to_label[chroma_time])
-            aligned_times.append(chroma_time)
-        else:
-            aligned_chroma.append(chroma_features[i])
-            aligned_chords.append("N")  # No Chord label
-            aligned_times.append(chroma_time)
+        # update chord if we passed the time
+        while chord_idx < len(chord_times) and chord_times[chord_idx] <= chroma_time:
+            current_chord = chord_labels[chord_idx]
+            chord_idx += 1
+        
+        aligned_chroma.append(chroma_features[i])
+        aligned_chords.append(current_chord)
+        aligned_times.append(chroma_time)
 
     return (np.array(aligned_chroma), aligned_chords, np.array(aligned_times))
 
