@@ -22,6 +22,9 @@ def parse_args():
     parser.add_argument('--no-cache', action='store_true',
                        help='Ignore cached data and reload from source')
     
+    parser.add_argument('--test-mode', action='store_true',
+                       help='Run in test mode with a small subset of data')
+    
     return parser.parse_args()
 
 
@@ -90,9 +93,8 @@ def main():
     # Step 1: Load data
     music_pieces = load_data(use_cache=not args.no_cache)
 
-    # subsample music_pieces for quick testing
-    # TODO: Remove or adjust for full training
-    music_pieces = music_pieces[:10]  # Remove or adjust for full training
+    if args.test_mode:
+        music_pieces = music_pieces[:10]  # Remove or adjust for full training
     
     if not music_pieces:
         print("Error: No data loaded. Please check your data directory.")
