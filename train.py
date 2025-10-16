@@ -31,8 +31,7 @@ def train_hmm_for_subset(subset_name: str,
     """
     Train an HMM model for a specific subset of data.
     """
-    print(f"\n{'='*60}")
-    print(f"Training HMM for subset: {subset_name}")
+    print(f"\nTraining HMM for subset: {subset_name}")
     print(f"{'='*60}")
 
     # extracting chroma and chord sequences
@@ -43,11 +42,7 @@ def train_hmm_for_subset(subset_name: str,
     # initialize the HMM model
     model = ChordHMM()
     
-    # Train the model
-    print(f"Training HMM on {len(chroma_sequences)} sequences...")
-    
-    # TODO: Uncomment when ChordHMM.train() is implemented
-    # model.train(chroma_sequences, chord_sequences)
+    model.train(chroma_sequences, chord_sequences)
     
     # Save the trained model
     os.makedirs(output_dir, exist_ok=True)
@@ -55,8 +50,7 @@ def train_hmm_for_subset(subset_name: str,
     
     print(f"Saving model to {model_path}...")
     
-    # TODO: Uncomment when ChordHMM.save() is implemented
-    # model.save(model_path)
+    model.save(model_path)
     
     print(f"Training complete for {subset_name}")
     
@@ -95,6 +89,10 @@ def main():
     
     # Step 1: Load data
     music_pieces = load_data(use_cache=not args.no_cache)
+
+    # subsample music_pieces for quick testing
+    # TODO: Remove or adjust for full training
+    music_pieces = music_pieces[:10]  # Remove or adjust for full training
     
     if not music_pieces:
         print("Error: No data loaded. Please check your data directory.")
