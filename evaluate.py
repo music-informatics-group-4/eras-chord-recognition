@@ -5,6 +5,7 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 from hmm_model import ChordHMM
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 
 ALL_ERAS = ["piano_addon", "piano_baroque", "piano_classical", "piano_modern", "piano_romantic", "orchestra_addon", "orchestra_baroque", "orchestra_classical", "orchestra_modern", "orchestra_romantic"]
 CHORDS = ['A_aug', 'A_dim', 'A_dim_dim7', 'A_dim_min7', 'A_maj', 'A_maj_maj7', 'A_maj_min7', 'A_min', 'A_min_min7', 'Ab_dim', 'Ab_dim_min7', 'Ab_maj', 'Ab_maj_maj7', 'Ab_maj_min7', 'Ab_min', 'Ab_min_min7', 'B_aug', 'B_dim', 'B_dim_dim7', 'B_dim_min7', 'B_maj', 'B_maj_maj7', 'B_maj_min7', 'B_min', 'B_min_min7', 'Bb_aug', 'Bb_dim', 'Bb_dim_dim7', 'Bb_dim_min7', 'Bb_maj', 'Bb_maj_maj7', 'Bb_maj_min7', 'Bb_min', 'Bb_min_min7', 'C#_dim', 'C#_dim_min7', 'C#_maj', 'C#_maj_maj7', 'C#_maj_min7', 'C#_min', 'C#_min_min7', 'C_aug', 'C_dim', 'C_dim_min7', 'C_maj', 'C_maj_maj7', 'C_maj_min7', 'C_min', 'C_min_min7', 'D_dim', 'D_dim_min7', 'D_maj', 'D_maj_maj7', 'D_maj_min7', 'D_min', 'D_min_min7', 'E_dim', 'E_dim_min7', 'E_maj', 'E_maj_maj7', 'E_maj_min7', 'E_min', 'E_min_min7', 'Eb_dim', 'Eb_dim_min7', 'Eb_maj', 'Eb_maj_maj7', 'Eb_maj_min7', 'Eb_min', 'Eb_min_min7', 'F#_dim', 'F#_dim_min7', 'F#_maj', 'F#_maj_maj7', 'F#_maj_min7', 'F#_min', 'F#_min_min7', 'F_dim', 'F_dim_min7', 'F_maj', 'F_maj_maj7', 'F_maj_min7', 'F_min', 'F_min_min7', 'G_dim', 'G_dim_min7', 'G_maj', 'G_maj_maj7', 'G_maj_min7', 'G_min', 'G_min_min7', 'N']
@@ -173,9 +174,9 @@ def eval(model, subsets, chord_list = CHORDS, chord_map = None, eras = ALL_ERAS)
                     hits += 1
                 else:
                     misses += 1
-            j += 1
-            if j % 10 == 0:
-                print(j)
+            #j += 1
+            #if j % 10 == 0:
+            #    print(j)
 
 
     tot = hits+misses
@@ -326,6 +327,38 @@ def correctness_plot(model, target_track, t_start=0, t_end = None, chord_list = 
     else:
         plt.show()
 
+def conf_mat_plot(report, name = None, save = True):
+    disp = ConfusionMatrixDisplay(report["conf_mat"])
+    disp.plot(include_values = False)
+    if save:
+        if name:
+            plt.savefig("results/" + name + ".png")
+        else: 
+            plt.savefig("results/conf_mat.png")
+    else:
+        plt.show()
+
+def cross_model_plot(reports, target_metrics, chord_list = CHORDS, target_chords = CHORDS, name = None, save = True):
+    N_models = len(reports)
+    N_eras = len(reports[0])
+    for metric in target_metrics:
+        fig = np.zeros((N_models, N_eras))
+        for i in range(N_models):
+            for j in range(N_eras):
+                report = reports[i][j]
+                val = np.mean(report[metric])
+                fig[i][j] = val
+        disp = ConfusionMatrixDisplay(fig)
+        disp.plot()
+        if save:
+            if name:
+                plt.savefig("results/" + name + "_" + metric + ".png")
+            else: 
+                plt.savefig("results/cross_model_plot_"+metric+".png")
+        else:
+            plt.show()
+
+
 def main():
     ## TODO: Implement evaluation pipeline
     # this script should load trained HMM models from disk,
@@ -344,23 +377,37 @@ def main():
 
 
     t_before = time.time()
-    m1 = ChordHMM()
-    m1.load("models/hmm_all.pkl")
-    models = [m1]
-    
+
+    model_names = ["all"] + ALL_ERAS
+    models = []
+    for name in model_names:
+        m = ChordHMM()
+        m.load("models/hmm_" + name + ".pkl")
+        models.append(m)
+
     reports = []
 
     for i, m in enumerate(models):
-
-        report = eval(m, subsets, simple_chords, eras= ["piano_addon"])
-        report["name"] = "model_" + str(i)
-        reports.append(report)
+        report_group = []
+        for era in model_names:
+            if era == "all":
+                eras = ALL_ERAS
+            else:
+                eras = [era]
+            print("starting eval off", model_names[i] + "_on_" + era)
+            report = eval(m, subsets, simple_chords, eras=eras)
+            report["name"] = model_names[i] + "_on_" + era
+            report_group.append(report)
+        reports.append(report_group)
 
     random_track = random.choice(subsets["piano_addon"])
     prediction_plot(models[0], random_track, 10, 15, chord_list=simple_chords)
     correctness_plot(models[0], random_track, 10, 15, chord_list=simple_chords)
-    compare_plot(reports, ["TP", "P", "R"])
-    chord_compare(reports[0], ["TP", "P", "R"], ["A_maj", "B_maj", "C_maj"])
+    compare_plot(reports[0], ["TP", "P", "R"])
+    chord_compare(reports[0][0], ["TP", "P", "R"], ["A_maj", "B_maj", "C_maj"])
+    #cross_model_plot(reports, ["P", "F1"], chord_list=simple_chords)
+    conf_mat_plot(reports[0][0])
+    
 
 
 if __name__ == "__main__":
