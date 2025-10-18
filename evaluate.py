@@ -4,6 +4,8 @@ import random
 import time
 import numpy as np
 import matplotlib.pyplot as plt
+from hmm_model import ChordHMM
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 
 ALL_ERAS = ["piano_addon", "piano_baroque", "piano_classical", "piano_modern", "piano_romantic", "orchestra_addon", "orchestra_baroque", "orchestra_classical", "orchestra_modern", "orchestra_romantic"]
 CHORDS = ['A_aug', 'A_dim', 'A_dim_dim7', 'A_dim_min7', 'A_maj', 'A_maj_maj7', 'A_maj_min7', 'A_min', 'A_min_min7', 'Ab_dim', 'Ab_dim_min7', 'Ab_maj', 'Ab_maj_maj7', 'Ab_maj_min7', 'Ab_min', 'Ab_min_min7', 'B_aug', 'B_dim', 'B_dim_dim7', 'B_dim_min7', 'B_maj', 'B_maj_maj7', 'B_maj_min7', 'B_min', 'B_min_min7', 'Bb_aug', 'Bb_dim', 'Bb_dim_dim7', 'Bb_dim_min7', 'Bb_maj', 'Bb_maj_maj7', 'Bb_maj_min7', 'Bb_min', 'Bb_min_min7', 'C#_dim', 'C#_dim_min7', 'C#_maj', 'C#_maj_maj7', 'C#_maj_min7', 'C#_min', 'C#_min_min7', 'C_aug', 'C_dim', 'C_dim_min7', 'C_maj', 'C_maj_maj7', 'C_maj_min7', 'C_min', 'C_min_min7', 'D_dim', 'D_dim_min7', 'D_maj', 'D_maj_maj7', 'D_maj_min7', 'D_min', 'D_min_min7', 'E_dim', 'E_dim_min7', 'E_maj', 'E_maj_maj7', 'E_maj_min7', 'E_min', 'E_min_min7', 'Eb_dim', 'Eb_dim_min7', 'Eb_maj', 'Eb_maj_maj7', 'Eb_maj_min7', 'Eb_min', 'Eb_min_min7', 'F#_dim', 'F#_dim_min7', 'F#_maj', 'F#_maj_maj7', 'F#_maj_min7', 'F#_min', 'F#_min_min7', 'F_dim', 'F_dim_min7', 'F_maj', 'F_maj_maj7', 'F_maj_min7', 'F_min', 'F_min_min7', 'G_dim', 'G_dim_min7', 'G_maj', 'G_maj_maj7', 'G_maj_min7', 'G_min', 'G_min_min7', 'N']
@@ -12,8 +14,9 @@ N24_RULEMAP = {
     "_dim7": "",
     "_maj7": "",
     "_min7": "",
-    "_dim": None,
-    "_aug": None
+    "_dim": "min",
+    "_aug": "maj",
+    "_": ""
 }
 
 def gen_chords_from_rules(rule_map, chord_list = CHORDS):
@@ -107,6 +110,11 @@ def reformat_data(chord_data, chord_map = None, frame_size = 0.1):
     return formated_data
 
     
+def remap_chords(data, chord_map = None):
+    if chord_map is not None:
+        for track in data:
+            for i in range(len(track.chord_labels)):
+                track.chord_labels[i] = chord_map[track.chord_labels[i]]
 
 
 
@@ -115,27 +123,30 @@ class Model:
         self.name = name
 
 def load_model(name):
-    return Model(name)
-    #TODO use hmm_model.load
-def run_model(model, data, frame_size = 0.1, genres = ALL_ERAS):
-    #TODO change this 
-    preds = {}
-    for genre in genres:
-        subset = data[genre]
-        for key in subset:
-            N = len(subset[key])
-            
-            res = [0] * N
-            for i in range(len(res)):
-                res[i] = random.choice(CHORDS)
-            preds[key] = res
+    m = ChordHMM()
+    m.load("models/" + name)
+    return m
+def run_model(model, subsets, frame_size = 0.1, eras = ALL_ERAS):
+    t_before = time.time()
 
-    return preds
+
+    out = []
+    for era in eras:
+        chroma_features = subsets[era]
+        for feature in chroma_features:
+            preds = model.predict(feature)
+            out.append(preds)
+
+
+    print("model",model.name,"ran in ", time.time()-t_before, "seconds")
+    
+    return out
 
 def format_model_output(out):
     return out #TODO maybe need to add something here depending on how model is implemented
-def eval(model, chord_data, chord_list = CHORDS, chord_map = None, classes = ALL_ERAS):
-    predictions = run_model(model, chord_data) #TODO run on chromagram data when model is done
+def eval(model, subsets, chord_list = CHORDS, chord_map = None, eras = ALL_ERAS):
+    t_before_eval = time.time()
+    
 
     n = len(chord_list)
     conf_mat = np.zeros((n,n))
@@ -143,14 +154,19 @@ def eval(model, chord_data, chord_list = CHORDS, chord_map = None, classes = ALL
     #   Confmat[:,i] = column i, all values that actually are label i
     hits = 0
     misses = 0
-    for cls in classes:
-        for key in chord_data[cls]:
-            annotation = chord_data[cls][key]
-            pred = predictions[key]
+    j = 0
+    for era in eras:
+        era_tracks = subsets[era]
+        
+        for track in era_tracks:
+            chroma = track.chroma_features
+            annotation = track.chord_labels
+            pred = model.predict(chroma)
+
             if chord_map is not None:
                 pred = [chord_map[pred[i]] for i in range(len(pred))]
-            for i in range(len(annotation)):
-                
+
+            for i in range(len(pred)):
                 a_index = chord_list.index(annotation[i])
                 pred_index = chord_list.index(pred[i])
                 conf_mat[pred_index][a_index] += 1
@@ -158,9 +174,13 @@ def eval(model, chord_data, chord_list = CHORDS, chord_map = None, classes = ALL
                     hits += 1
                 else:
                     misses += 1
+            #j += 1
+            #if j % 10 == 0:
+            #    print(j)
 
 
     tot = hits+misses
+    acc = np.zeros(n)
     TP = np.zeros(n)
     FP = np.zeros(n)
     TN = np.zeros(n)
@@ -173,13 +193,13 @@ def eval(model, chord_data, chord_list = CHORDS, chord_map = None, classes = ALL
         FP[i] = np.sum(conf_mat[i, :]) - TP[i]
         FN[i] = np.sum(conf_mat[:, i]) - TP[i]
         TN[i] = tot - TP[i] - FP[i] - FN[i]
+        acc[i] = TP[i]/(TP[i]+FP[i]+FN[i])
         P[i] = TP[i]/(TP[i] + FP[i])
         R[i] = TP[i] /(TP[i] +FN[i])
         F1[i] = 2*TP[i]/(2*TP[i] + FP[i] + FN[i])
 
 
     res = {}
-    res["name"] = model.name
     res["hits"] = hits
     res["misses"] = misses
     res["conf_mat"] = conf_mat
@@ -191,7 +211,7 @@ def eval(model, chord_data, chord_list = CHORDS, chord_map = None, classes = ALL
     res["R"] = R
     res["F1"] = F1
 
-
+    print("evaluation done in ", time.time()-t_before_eval, "seconds")
 
     return res
 
@@ -239,20 +259,104 @@ def chord_compare(report, target_metrics, chord_list = CHORDS, target_chords = C
         else:
             plt.show()
         
-    
-def get_report(model, chord_data, chord_list = CHORDS, chord_map = None):
-    t_before = time.time()
 
-    preds = run_model(model, chord_data)
-    print("model",model.name,"ran in ", time.time()-t_before, "seconds")
-    
+def prediction_plot(model, target_track, t_start=0, t_end = None, chord_list = CHORDS, name= None, save = True):
+    chord_labels = target_track.chord_labels
+    chroma_features = target_track.chroma_features
 
-    preds = format_model_output(preds)
+    start_frame = int(t_start*10)
+    if t_end == None:
+        end_frame = len(chord_labels)
+    else: 
+        end_frame = min(len(chord_labels), int(t_end * 10))
+    image = np.zeros((len(chord_list), end_frame - start_frame, 3))
 
-    t_before = time.time()
-    report = eval(model, chord_data, chord_list=chord_list, chord_map=chord_map)
-    print("evaluation done in ", time.time()-t_before, "seconds")
-    return report
+    pred = model.predict(chroma_features)
+    red = np.array([255,0,0]) * (1/255)
+    green = np.array([0,117,0]) * (1/255)
+    light_green = np.array([119,230,119]) * (1/255)
+    for i in range(start_frame, end_frame):
+        a_index = chord_list.index(chord_labels[i])
+        pred_index = chord_list.index(pred[i])
+        if a_index == pred_index:
+            image[a_index][i-start_frame] = green
+        else:
+            image[a_index][i-start_frame] = light_green
+            image[pred_index][i-start_frame] = red
+    print("image shape:", image.shape)
+    plt.imshow(image)
+    plt.axis("off")
+    plt.xlabel("Time(s)")
+    if save:
+        if name:
+            plt.savefig("results/" + name + ".png")
+        else: 
+            plt.savefig("results/prediction_plot.png")
+    else:
+        plt.show()
+            
+
+def correctness_plot(model, target_track, t_start=0, t_end = None, chord_list = CHORDS, name= None, save = True):
+    chord_labels = target_track.chord_labels
+    chroma_features = target_track.chroma_features
+
+    start_frame = int(t_start*10)
+    if t_end == None:
+        end_frame = len(chord_labels)
+    else: 
+        end_frame = min(len(chord_labels), int(t_end * 10))
+    image = np.zeros((1,end_frame - start_frame, 3))
+
+    pred = model.predict(chroma_features)
+    red = np.array([255,0,0]) * (1/255)
+    green = np.array([0,117,0]) * (1/255)
+    for i in range(start_frame, end_frame):
+        a_index = chord_list.index(chord_labels[i])
+        pred_index = chord_list.index(pred[i])
+        if a_index == pred_index:
+            image[0][i-start_frame] = green
+        else:
+            image[0][i-start_frame] = red
+    plt.imshow(image)
+    plt.xlim = (t_start, t_end)
+    if save:
+        if name:
+            plt.savefig("results/" + name + ".png")
+        else: 
+            plt.savefig("results/correctness_plot.png")
+    else:
+        plt.show()
+
+def conf_mat_plot(report, name = None, save = True):
+    disp = ConfusionMatrixDisplay(report["conf_mat"])
+    disp.plot(include_values = False)
+    if save:
+        if name:
+            plt.savefig("results/" + name + ".png")
+        else: 
+            plt.savefig("results/conf_mat.png")
+    else:
+        plt.show()
+
+def cross_model_plot(reports, target_metrics, chord_list = CHORDS, target_chords = CHORDS, name = None, save = True):
+    N_models = len(reports)
+    N_eras = len(reports[0])
+    for metric in target_metrics:
+        fig = np.zeros((N_models, N_eras))
+        for i in range(N_models):
+            for j in range(N_eras):
+                report = reports[i][j]
+                val = np.mean(report[metric])
+                fig[i][j] = val
+        disp = ConfusionMatrixDisplay(fig)
+        disp.plot()
+        if save:
+            if name:
+                plt.savefig("results/" + name + "_" + metric + ".png")
+            else: 
+                plt.savefig("results/cross_model_plot_"+metric+".png")
+        else:
+            plt.show()
 
 
 def main():
@@ -261,35 +365,49 @@ def main():
     # evaluate them on test data, and generate comparison reports
     # including accuracy metrics, confusion matrices, and plots
 
-    #TODO maybe figure out how to use cache here.
-    chord_data = data_utils.load_chord_annotations()
 
-    #simple_chords, simple_map = gen_chords_from_rules(N24_RULEMAP)
-    simple_chords, simple_map = gen_chords_from_rules({})
+    #Load chords and reformat + partition data
+    full_data = data_utils.load_data()
+    simple_chords, simple_map = gen_chords_from_rules(N24_RULEMAP)
+    remap_chords(full_data, simple_map)
+
+    subsets = data_utils.create_subsets_by_era(full_data)
+    print(subsets.keys())
     
-    #chrom_data = data_utils.load_chroma_features()
-    t_before = time.time()
-    chord_data = reformat_data(chord_data, simple_map)
 
-    print("data reformated in ", time.time()-t_before, "seconds")
 
     t_before = time.time()
-    m1 = load_model("m1")
-    m2 = load_model("m2")
-    m3 = load_model("m3")
-    m4 = load_model("m4")
-    models = [m1, m2, m3, m4]
-    
+
+    model_names = ["all"] + ALL_ERAS
+    models = []
+    for name in model_names:
+        m = ChordHMM()
+        m.load("models/hmm_" + name + ".pkl")
+        models.append(m)
+
     reports = []
 
-    for m in models:
+    for i, m in enumerate(models):
+        report_group = []
+        for era in model_names:
+            if era == "all":
+                eras = ALL_ERAS
+            else:
+                eras = [era]
+            print("starting eval off", model_names[i] + "_on_" + era)
+            report = eval(m, subsets, simple_chords, eras=eras)
+            report["name"] = model_names[i] + "_on_" + era
+            report_group.append(report)
+        reports.append(report_group)
 
-        #report = get_report(m, chord_data, simple_chords, simple_map)
-        report = get_report(m, chord_data)
-        reports.append(report)
-
-    compare_plot(reports, ["TP", "F1"])
-    chord_compare(reports[0], ["TP", "F1"], ["A_maj", "B_maj", "C_maj"])
+    random_track = random.choice(subsets["piano_addon"])
+    prediction_plot(models[0], random_track, 10, 15, chord_list=simple_chords)
+    correctness_plot(models[0], random_track, 10, 15, chord_list=simple_chords)
+    compare_plot(reports[0], ["TP", "P", "R"])
+    chord_compare(reports[0][0], ["TP", "P", "R"], ["A_maj", "B_maj", "C_maj"])
+    #cross_model_plot(reports, ["P", "F1"], chord_list=simple_chords)
+    conf_mat_plot(reports[0][0])
+    
 
 
 if __name__ == "__main__":
